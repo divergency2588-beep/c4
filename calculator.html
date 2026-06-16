@@ -21,6 +21,14 @@
       --theme-toggle-bg: #2d2d44;
       --theme-toggle-hover: #3d3d5c;
       --theme-toggle-text: #fff;
+      --bg-history: #12121a;
+      --text-history-title: #aaa;
+      --text-history-entry: #ddd;
+      --text-history-time: #666;
+      --border-history: #2d2d44;
+      --btn-history-clear-bg: #2d2d44;
+      --btn-history-clear-hover: #3d3d5c;
+      --btn-history-clear-text: #ccc;
     }
 
     [data-theme="light"] {
@@ -38,6 +46,14 @@
       --theme-toggle-bg: #e5e7eb;
       --theme-toggle-hover: #d1d5db;
       --theme-toggle-text: #111827;
+      --bg-history: #ffffff;
+      --text-history-title: #374151;
+      --text-history-entry: #111827;
+      --text-history-time: #9ca3af;
+      --border-history: #e5e7eb;
+      --btn-history-clear-bg: #e5e7eb;
+      --btn-history-clear-hover: #d1d5db;
+      --btn-history-clear-text: #374151;
     }
 
     * {
@@ -51,9 +67,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 20px;
       font-family: "Segoe UI", system-ui, sans-serif;
       background: var(--bg-body);
       transition: background 0.3s ease;
+    }
+
+    .app {
+      display: flex;
+      align-items: stretch;
+      gap: 20px;
+      max-width: 100%;
     }
 
     .calculator {
@@ -190,6 +214,102 @@
     .btn-zero {
       grid-column: span 2;
     }
+
+    .history {
+      width: 280px;
+      background: var(--bg-calculator);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--shadow-calculator);
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 8px;
+    }
+
+    .history-title {
+      color: var(--text-history-title);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .history-clear {
+      background: var(--btn-history-clear-bg);
+      color: var(--btn-history-clear-text);
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .history-clear:hover {
+      background: var(--btn-history-clear-hover);
+    }
+
+    .history-list {
+      list-style: none;
+      flex: 1;
+      min-height: 320px;
+      max-height: 420px;
+      overflow-y: auto;
+      background: var(--bg-history);
+      border-radius: 10px;
+      padding: 8px;
+      transition: background 0.3s ease;
+    }
+
+    .history-empty {
+      color: var(--text-history-time);
+      font-size: 13px;
+      text-align: center;
+      padding: 24px 12px;
+    }
+
+    .history-item {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border-history);
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-expression {
+      color: var(--text-history-entry);
+      font-size: 14px;
+      word-break: break-all;
+    }
+
+    .history-time {
+      color: var(--text-history-time);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .history {
+        width: 320px;
+      }
+
+      .history-list {
+        min-height: 160px;
+        max-height: 200px;
+      }
+    }
   </style>
   <script>
     (function () {
@@ -206,6 +326,7 @@
   </script>
 </head>
 <body>
+  <div class="app">
   <div class="calculator">
     <div class="calculator-header">
       <button
@@ -247,8 +368,19 @@
     </div>
   </div>
 
+  <aside class="history">
+    <div class="history-header">
+      <h2 class="history-title">Журнал операций</h2>
+      <button type="button" class="history-clear" id="clearHistory">Очистить</button>
+    </div>
+    <ul class="history-list" id="historyList"></ul>
+  </aside>
+  </div>
+
   <script>
     const THEME_KEY = "calculator-theme";
+    const HISTORY_KEY = "calculator-history";
+    const MAX_HISTORY = 50;
     const themeToggle = document.getElementById("themeToggle");
 
     function getPreferredTheme() {
@@ -281,16 +413,85 @@
 
     const expressionEl = document.getElementById("expression");
     const resultEl = document.getElementById("result");
+    const historyListEl = document.getElementById("historyList");
+    const clearHistoryBtn = document.getElementById("clearHistory");
+
+    const OP_SYMBOLS = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 
     let currentValue = "0";
     let previousValue = "";
     let operator = null;
     let waitingForOperand = false;
+    let history = [];
+
+    function loadHistory() {
+      try {
+        const saved = localStorage.getItem(HISTORY_KEY);
+        history = saved ? JSON.parse(saved) : [];
+        if (!Array.isArray(history)) history = [];
+      } catch {
+        history = [];
+      }
+    }
+
+    function saveHistory() {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function formatTime(timestamp) {
+      return new Date(timestamp).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+
+    function formatExpression(prev, op, curr) {
+      return `${prev} ${OP_SYMBOLS[op]} ${curr}`;
+    }
+
+    function renderHistory() {
+      if (history.length === 0) {
+        historyListEl.innerHTML =
+          '<li class="history-empty">Пока нет операций</li>';
+        return;
+      }
+
+      historyListEl.innerHTML = history
+        .map(
+          (entry) => `
+            <li class="history-item">
+              <div class="history-expression">${entry.text}</div>
+              <div class="history-time">${formatTime(entry.time)}</div>
+            </li>
+          `
+        )
+        .join("");
+    }
+
+    function addHistoryEntry(text) {
+      history.unshift({ text, time: Date.now() });
+      if (history.length > MAX_HISTORY) {
+        history.length = MAX_HISTORY;
+      }
+      saveHistory();
+      renderHistory();
+    }
+
+    function clearHistory() {
+      history = [];
+      saveHistory();
+      renderHistory();
+    }
+
+    loadHistory();
+    renderHistory();
+    clearHistoryBtn.addEventListener("click", clearHistory);
 
     function updateDisplay() {
       resultEl.textContent = currentValue;
       if (previousValue && operator) {
-        const opSymbol = { "+": "+", "-": "−", "*": "×", "/": "÷" }[operator];
+        const opSymbol = OP_SYMBOLS[operator];
         expressionEl.textContent = `${previousValue} ${opSymbol}`;
       } else {
         expressionEl.textContent = "";
@@ -361,14 +562,17 @@
 
       const prev = parseFloat(previousValue);
       const curr = parseFloat(currentValue);
+      const op = operator;
+      const expression = formatExpression(previousValue, op, curr);
       let result;
 
-      switch (operator) {
+      switch (op) {
         case "+": result = prev + curr; break;
         case "-": result = prev - curr; break;
         case "*": result = prev * curr; break;
         case "/":
           if (curr === 0) {
+            addHistoryEntry(`${expression} = Ошибка`);
             currentValue = "Ошибка";
             previousValue = "";
             operator = null;
@@ -380,7 +584,9 @@
           break;
       }
 
-      currentValue = String(parseFloat(result.toPrecision(12)));
+      const resultStr = String(parseFloat(result.toPrecision(12)));
+      addHistoryEntry(`${expression} = ${resultStr}`);
+      currentValue = resultStr;
       previousValue = "";
       operator = null;
       waitingForOperand = true;
