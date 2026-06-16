@@ -297,7 +297,7 @@
 
     @media (max-width: 680px) {
       .app {
-        flex-direction: column;
+        flex-direction: column-reverse;
         align-items: center;
       }
 
@@ -327,6 +327,14 @@
 </head>
 <body>
   <div class="app">
+  <aside class="history">
+    <div class="history-header">
+      <h2 class="history-title">Журнал операций</h2>
+      <button type="button" class="history-clear" id="clearHistory">Очистить</button>
+    </div>
+    <ul class="history-list" id="historyList"></ul>
+  </aside>
+
   <div class="calculator">
     <div class="calculator-header">
       <button
@@ -367,14 +375,6 @@
       <button class="btn-equals" data-action="equals">=</button>
     </div>
   </div>
-
-  <aside class="history">
-    <div class="history-header">
-      <h2 class="history-title">Журнал операций</h2>
-      <button type="button" class="history-clear" id="clearHistory">Очистить</button>
-    </div>
-    <ul class="history-list" id="historyList"></ul>
-  </aside>
   </div>
 
   <script>
